@@ -1,0 +1,12 @@
+.vs
+*.bak
+Debug
+Release
+x64
+*.aps
+
+
+ipch
+*.opensdf
+*.sdf
+*.suo
