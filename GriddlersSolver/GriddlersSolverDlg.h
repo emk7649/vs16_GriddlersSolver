@@ -77,7 +77,7 @@ class CCompletionChecker
 {
 public:
     CCompletionChecker() {}
-    void SetSize(int row_size, int column_size)
+    void SetSize(int column_size, int row_size)
     {
         m_completions_row.resize(row_size);
         m_completions_column.resize(column_size);

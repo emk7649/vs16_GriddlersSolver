@@ -148,6 +148,7 @@ BOOL CGriddlersSolverDlg::OnInitDialog()
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	InitView();
 
+	//// vertices가 찌그러진 square contour
 	m_edit_rows = _T("3\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
 	m_edit_columns = _T("3,\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
 	UpdateData(false);
@@ -539,8 +540,19 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 		int Rcom = nMargin;
 		int Rpcom = (long)blocks.size(); // (n-1)
 
+		//// tgamma precision is bad at 34. Therefore, I will calculate it using a different method.
+		//int largerDen = max(Rcom, Rpcom);
+		//int smallerDen = min(Rcom, Rpcom);
+		//double numerator = 1.;
+		//double denominator = 1.;
+		//for (long cnt = Ncom; cnt > largerDen; cnt--)
+		//	numerator *= (double)cnt;
+		//for (long cnt = 2; cnt <= smallerDen; cnt++)
+		//	denominator *= (double)cnt;
+		//long sizeY = (long)(numerator / denominator + 0.5);
+
 		long sizeX = num_squre;
-		long sizeY = (long)(tgamma(Ncom + 1) / tgamma(Rcom + 1) / tgamma(Rpcom + 1));  // n! : tgamma(n + 1)
+		long sizeY = (long)(tgamma(Ncom + 1.) / tgamma(Rcom + 1.) / tgamma(Rpcom + 1.) + 0.5);  // n! : tgamma(n + 1)
 
 		CImage mat;
 		CreateCImage(mat, sizeX, sizeY, 8);
@@ -734,8 +746,8 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 	UpdateData(false);
 
 	// make plate
-	CreateCImage(m_plateData, size_row, size_column, 8);
-	CreateCImage(m_plateDraw, size_row, size_column, 24);
+	CreateCImage(m_plateData, size_column, size_row, 8);
+	CreateCImage(m_plateDraw, size_column, size_row, 24);
 	MakeDrawPlate(m_plateData, m_plateDraw);
 	m_view.SetImage(m_plateDraw);
 }
