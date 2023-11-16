@@ -149,6 +149,7 @@ public:
 	void MakeDrawPlate(CImage& plateData, CImage& plateDraw);
 	void MakeSquareMonochrome(CImage& plate, CPoint pos, BYTE gray_value);
 	void MakeSquareColor(CImage& plate, CPoint pos, COLORREF color);
+    void MakeSquareColorHalf(CImage& plate, CPoint pos);
 	void FillZero(CImage& image);
     void Fill(CImage& image, BYTE value);
 
@@ -157,6 +158,10 @@ public:
     QueueLineSolve m_queueLineSolve;
 	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
 	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
+
+    static DWORD WINAPI __ThreadSolveGriddlers(LPVOID arg);
+    bool SolveGriddlers();
+
     bool SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve, QueueLineSolve& queue);
     void MakeMatrixCombination(MatrixByte& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case);
     void MakeLineFromMatrix(MatrixByte& mat, int size_mat, vector<BYTE>& line);

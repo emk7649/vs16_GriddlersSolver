@@ -305,6 +305,23 @@ void CGriddlersSolverDlg::MakeSquareColor(CImage& plate, CPoint pos, COLORREF co
 	Dst[2] = red;
 }
 
+void CGriddlersSolverDlg::MakeSquareColorHalf(CImage& plate, CPoint pos)
+{
+	if (plate.GetBPP() != 24)
+		return;
+
+	BYTE* Src = (BYTE*)plate.GetPixelAddress(pos.x, pos.y);
+	BYTE* Dst = (BYTE*)plate.GetPixelAddress(pos.x, pos.y);
+
+	BYTE red = Src[2] / 2;
+	BYTE green = Src[1] / 2;
+	BYTE blue = Src[0] / 2;
+
+	Dst[0] = blue;
+	Dst[1] = green;
+	Dst[2] = red;
+}
+
 void CGriddlersSolverDlg::MakeDrawPlate(CImage& plateData, CImage& plateDraw)
 {
 	long widthSrc = plateData.GetWidth();
@@ -759,6 +776,70 @@ void CGriddlersSolverDlg::MakeMatrixCombination(MatrixByte& mat, int Ncom, int R
 	delete[] order;
 }
 
+DWORD WINAPI CGriddlersSolverDlg::__ThreadSolveGriddlers(LPVOID arg)
+{
+	CGriddlersSolverDlg* pThis = (CGriddlersSolverDlg*)arg;
+	bool bResult = pThis->SolveGriddlers();
+
+	return 0;
+}
+
+bool CGriddlersSolverDlg::SolveGriddlers()
+{
+	int width = m_plateData.GetWidth();
+	int height = m_plateData.GetHeight();
+	if (width == 0 || height == 0)
+		return false;
+
+	// init queue
+	m_completionChecker.SetSize(width, height);
+	for (int cnt = 0; cnt < height; cnt++)
+	{
+		m_queueLineSolve.push_back(GridElement::ROW, cnt);
+	}
+	for (int cnt = 0; cnt < width; cnt++)
+	{
+		m_queueLineSolve.push_back(GridElement::COLUMN, cnt);
+	}
+
+	// while queue
+	while (!m_queueLineSolve.empty())
+	{
+		if (m_completionChecker.IsComplete())
+			break;
+
+		sLineSolve* line = m_queueLineSolve.pop_front();
+		MakeDrawPlate(m_plateData, m_plateDraw);
+		if ((*line).grid_element == GridElement::ROW)
+		{
+			for (long cnt = 0; cnt < width; cnt++)
+			{
+				CPoint point(cnt, (*line).line_index);
+				MakeSquareColorHalf(m_plateDraw, point);
+			}
+		}
+		else if ((*line).grid_element == GridElement::COLUMN)
+		{
+			for (long cnt = 0; cnt < height; cnt++)
+			{
+				CPoint point((*line).line_index, cnt);
+				MakeSquareColorHalf(m_plateDraw, point);
+			}
+		}
+		m_view.SetImage(m_plateDraw);
+
+		if (line)
+			SolveLineSolve1(m_plateData, *line, m_queueLineSolve);
+		else
+		{
+			AfxMessageBox(_T("error {66A6AAF5-1B0E-4F44-9FFF-80871B770DEF}, The queue is empty even though it's not yet complete."));
+			break;
+		}
+	}
+	MakeDrawPlate(m_plateData, m_plateDraw);
+	m_view.SetImage(m_plateDraw);
+}
+
 void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 {
 	UpdateData(true);
@@ -783,43 +864,8 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 
 void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 {
-	int width = m_plateData.GetWidth();
-	int height = m_plateData.GetHeight();
-	if (width == 0 || height == 0)
-		return;
+	HANDLE	__hThread;
 
-	// init queue
-	m_completionChecker.SetSize(width, height);
-	for (int cnt = 0; cnt < height; cnt++)
-	{
-		m_queueLineSolve.push_back(GridElement::ROW, cnt);
-	}
-	for (int cnt = 0; cnt < width; cnt++)
-	{
-		m_queueLineSolve.push_back(GridElement::COLUMN, cnt);
-	}
-
-	// while queue
-	while (!m_queueLineSolve.empty())
-	{
-		if (m_completionChecker.IsComplete())
-			break;
-
-		sLineSolve* line = m_queueLineSolve.pop_front();
-		if (line)
-			SolveLineSolve1(m_plateData, *line, m_queueLineSolve);
-		else
-		{
-			AfxMessageBox(_T("error {66A6AAF5-1B0E-4F44-9FFF-80871B770DEF}, The queue is empty even though it's not yet complete."));
-			break;
-		}
-
-		if (m_completionChecker.IsComplete(*line))
-			m_completionChecker.CompleteLine(*line);
-
-		MakeDrawPlate(m_plateData, m_plateDraw);
-		m_view.SetImage(m_plateDraw);
-	}
-	MakeDrawPlate(m_plateData, m_plateDraw);
-	m_view.SetImage(m_plateDraw);
+	DWORD dwThreadID = 0;
+	__hThread = CreateThread(NULL, 0, __ThreadSolveGriddlers, this, NULL, &dwThreadID);
 }
