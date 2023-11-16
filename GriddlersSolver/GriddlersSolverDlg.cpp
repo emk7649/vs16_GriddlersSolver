@@ -439,14 +439,81 @@ bool CGriddlersSolverDlg::SetLineVector(CImage& plateData, GridElement grid_elem
 	return false;
 }
 
+bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve)
+{
+	GridElement& grid_element = lineSolve.grid_element;
+	int& line_index = lineSolve.line_index;
+
+	vector<int> blocks;
+	if (grid_element == GridElement::ROW)
+		blocks = m_blocks_row[line_index];
+	else if (grid_element == GridElement::COLUMN)
+		blocks = m_blocks_column[line_index];
+
+	CImage& plateData = io_plateData;
+	vector<BYTE> line;
+	if (!GetLineVector(plateData, grid_element, line_index, line))
+		return false;
+
+	int nOccupy = 0;
+	for (long cnt = 0; cnt < blocks.size(); cnt++)
+	{
+		nOccupy += blocks[cnt];
+	}
+	int nMargin = line.size() - nOccupy - blocks.size() + 1;
+
+	// Algorithm
+	// do solve line
+	// do solve line
+	// do solve line
+	// if, 하나도 안 채워졌을 때
+	int sumLine = 0;
+	for (long cnt = 0; cnt < line.size(); cnt++)
+	{
+		sumLine += line[cnt];
+	}
+	if (sumLine == 0)
+	{
+		// if nMargin + each block > line.size()
+		// 해당 블록 이전 숫자 합 + cnt = first block pos
+		// first block pos + margin = occupy square start pos
+		int sumBlock = 0;
+		for (long cnt = 0; cnt < blocks.size(); cnt++)
+		{
+			if (blocks[cnt] - nMargin > 0)
+			{
+				int startPos_occupy = sumBlock + cnt + nMargin;
+				int size_occupy = blocks[cnt] - nMargin;
+				for (long blockPos = startPos_occupy; blockPos < startPos_occupy + size_occupy; blockPos++)
+				{
+					line[blockPos] = 1;
+				}
+			}
+			sumBlock += blocks[cnt];
+		}
+	}
+	// if not, Normal Algorithm
+	// 모든 경우의 수를 구하고 &
+	// 중복 combination, nNCr = n^r / r!
+	// n = b + 1, block 사이 또는 양 끝
+	// r = m, nMargin
+	else
+	{
+
+	}
+
+	if (!SetLineVector(plateData, grid_element, line_index, line))
+		return false;
+}
+
 void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 {
 	UpdateData(true);
-	m_numbers_row.clear();
-	m_numbers_column.clear();
+	m_blocks_row.clear();
+	m_blocks_column.clear();
 
-	int sum_row = ConvertRowColumn(m_edit_rows, m_numbers_row);
-	int sum_column = ConvertRowColumn(m_edit_columns, m_numbers_column);
+	int sum_row = ConvertRowColumn(m_edit_rows, m_blocks_row);
+	int sum_column = ConvertRowColumn(m_edit_columns, m_blocks_column);
 
 	// check sum_row == sum_column
 	if (sum_row != sum_column)
@@ -455,8 +522,8 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 		return;
 	}
 
-	int size_row = (int)m_numbers_row.size();
-	int size_column = (int)m_numbers_column.size();
+	int size_row = (int)m_blocks_row.size();
+	int size_column = (int)m_blocks_column.size();
 
 	m_static_columnrow.Format(_T("%d * %d"), size_column, size_row);
 	UpdateData(false);
@@ -476,6 +543,7 @@ void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 		return;
 
 	// init queue
+	m_completionChecker.SetSize(width, height);
 	for (int cnt = 0; cnt < height; cnt++)
 	{
 		m_queueLineSolve.push_back(GridElement::ROW, cnt);
@@ -486,4 +554,12 @@ void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 	}
 
 	// while queue
+	while (!m_queueLineSolve.empty())
+	{
+		SolveLineSolve1(m_plateData, *m_queueLineSolve.pop_front());
+		long x = 10;
+
+	}
+	MakeDrawPlate(m_plateData, m_plateDraw);
+	m_view.SetImage(m_plateDraw);
 }

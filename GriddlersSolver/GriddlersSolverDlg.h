@@ -16,8 +16,20 @@ struct sLineSolve
 {
     GridElement grid_element;
     int line_index;
+
+    bool operator == (const sLineSolve& rhs) const
+    {
+        if (grid_element == rhs.grid_element &&
+            line_index == rhs.line_index)
+        {
+            return true;
+        }
+
+        return false;
+    }
 };
 
+// to prevent the insertion of duplicate lines into the queue.
 class QueueLineSolve
 {
 public:
@@ -25,34 +37,47 @@ public:
     virtual ~QueueLineSolve() {}
     void push_back(sLineSolve lineSolve)
     {
+        for (long cnt = 0; cnt < m_queue.size(); cnt++)
+        {
+            if (m_queue[cnt] == lineSolve)
+            {
+                return;
+            }
+        }
         m_queue.push_back(lineSolve);
     }
     void push_back(GridElement grid_element, int line_index)
     {
         sLineSolve lineSolve = { grid_element , line_index };
-        m_queue.push_back(lineSolve);
+        push_back(lineSolve);
     }
     sLineSolve* pop_front()
     {
         if (!m_queue.empty())
         {
-            sLineSolve* frontElement = &m_queue[0];
+            m_lineSolve_popFront = m_queue[0];
             m_queue.erase(m_queue.begin());
-            return frontElement;
+            return &m_lineSolve_popFront;
         }
         else {
             return nullptr;  // 빈 벡터인 경우 nullptr 반환
         }
     }
+    bool empty()
+    {
+        bool result = m_queue.empty();
+        return result;
+    }
 private:
     vector<sLineSolve> m_queue;
+    sLineSolve m_lineSolve_popFront;
 };
 
 class CCompletionChecker
 {
 public:
     CCompletionChecker() {}
-    CCompletionChecker(int row_size, int column_size)
+    void SetSize(int row_size, int column_size)
     {
         m_completions_row.resize(row_size);
         m_completions_column.resize(column_size);
@@ -113,9 +138,9 @@ public:
 	CGriddlersSolverDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 	virtual ~CGriddlersSolverDlg();
 
-	vector<vector<int>> m_numbers_row;
-	vector<vector<int>> m_numbers_column;
-	int ConvertRowColumn(CString strValue, vector<vector<int>>& o_numbers);
+    vector<vector<int>> m_blocks_row;
+    vector<vector<int>> m_blocks_column;
+    int ConvertRowColumn(CString strValue, vector<vector<int>>& o_blocks);
 
 	// CImage
 	CImage m_plateData;   // 0:not_defined, 1:有, 2:無
@@ -130,6 +155,7 @@ public:
     QueueLineSolve m_queueLineSolve;
 	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
 	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
+    bool SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve);
 
 	ImageView m_view;
 	void InitView();
