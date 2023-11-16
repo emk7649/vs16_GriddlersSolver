@@ -8,6 +8,9 @@
 #include "GriddlersSolverDlg.h"
 #include "afxdialogex.h"
 
+#include <Algorithm>
+#include <cmath>
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -374,6 +377,32 @@ void CGriddlersSolverDlg::FillZero(CImage& image)
 	delete[] zeros;
 }
 
+void CGriddlersSolverDlg::Fill(CImage& image, BYTE value)
+{
+	int width = image.GetWidth();
+	int height = image.GetHeight();
+	if (width == 0 || height == 0)
+		return;
+
+	int pitch = std::abs(image.GetPitch());
+	for (long y = 0; y < height; y++)
+	{
+		BYTE* pSrc = (BYTE*)image.GetPixelAddress(0, 0);
+		BYTE* pDst = (BYTE*)image.GetPixelAddress(0, y);
+		if (y == 0)
+		{
+			for (long x = 0; x < width; x++)
+			{
+				pSrc[x] = value;
+			}
+		}
+		else
+		{
+			memcpy(pDst, pSrc, pitch);
+		}
+	}
+}
+
 // Get LineVector from PlateDatas
 bool CGriddlersSolverDlg::GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line)
 {
@@ -445,10 +474,17 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 	int& line_index = lineSolve.line_index;
 
 	vector<int> blocks;
+	long num_squre = 0;
 	if (grid_element == GridElement::ROW)
+	{
 		blocks = m_blocks_row[line_index];
+		num_squre = (int)m_blocks_column.size();
+	}
 	else if (grid_element == GridElement::COLUMN)
+	{
 		blocks = m_blocks_column[line_index];
+		num_squre = (int)m_blocks_row.size();
+	}
 
 	CImage& plateData = io_plateData;
 	vector<BYTE> line;
@@ -460,14 +496,14 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 	{
 		nOccupy += blocks[cnt];
 	}
-	int nMargin = line.size() - nOccupy - blocks.size() + 1;
+	int nMargin = (long)line.size() - nOccupy - (long)blocks.size() + 1;
 
 	// Algorithm
 	// do solve line
 	// do solve line
 	// do solve line
 	// if, 하나도 안 채워졌을 때
-	int sumLine = 0;
+	/*int sumLine = 0;
 	for (long cnt = 0; cnt < line.size(); cnt++)
 	{
 		sumLine += line[cnt];
@@ -493,17 +529,173 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 		}
 	}
 	// if not, Normal Algorithm
-	// 모든 경우의 수를 구하고 &
-	// 중복 combination, nNCr = n^r / r!
+	// 모든 경우의 수 sizeY를 구하고 &
+	// 중복 combination, nHr = (r+n-1)C(n-1)
 	// n = b + 1, block 사이 또는 양 끝
 	// r = m, nMargin
-	else
+	else*/
 	{
+		int Ncom = nMargin + (long)blocks.size();
+		int Rcom = nMargin;
+		int Rpcom = (long)blocks.size(); // (n-1)
 
+		long sizeX = num_squre;
+		long sizeY = (long)(tgamma(Ncom + 1) / tgamma(Rcom + 1) / tgamma(Rpcom + 1));  // n! : tgamma(n + 1)
+
+		CImage mat;
+		CreateCImage(mat, sizeX, sizeY, 8);
+		Fill(mat, 99);
+
+		int size_mat = 0;
+		MakeMatrixCombination(mat, Ncom, Rpcom, blocks);
+		MakeLineFromMatrix(mat, size_mat, line);
 	}
 
 	if (!SetLineVector(plateData, grid_element, line_index, line))
 		return false;
+
+	return true;
+}
+
+void CGriddlersSolverDlg::MakeLineFromMatrix(CImage& mat, int size_mat, vector<BYTE>& line)
+{
+	const int sizeX = mat.GetWidth(); // size square
+	const int sizeY = mat.GetHeight(); // size case
+
+	// Transpose
+	CImage matT;
+	CreateCImage(matT, sizeY, sizeX, 8);
+
+	for (long y = 0; y < sizeY; y++)
+	{
+		BYTE* pSrc = (BYTE*)mat.GetPixelAddress(0, y);
+		for (long x = 0; x < sizeX; x++)
+		{
+			BYTE* pDst = (BYTE*)matT.GetPixelAddress(y, x);
+			*pDst = pSrc[x];
+		}
+	}
+
+	// Compress
+	for (long y = 0; y < sizeX; y++)
+	{
+		BYTE* pSrc = (BYTE*)matT.GetPixelAddress(0, y);
+		int sumY = 0;
+		for (long x = 0; x < sizeY; x++)
+		{
+			if (pSrc[x] == 1)
+				sumY++;
+			if (pSrc[x] == 2)
+				sumY--;
+		}
+
+		if (sumY == sizeY)
+			line[y] = 1;
+		else if (sumY == -sizeY)
+			line[y] = 2;
+	}
+}
+
+// 해당 vecotr에 이미 들어있는 정보(1 또는 2로 채워진 square)도 이용해야 함
+// 단순히 이미 들어있는 정보와 모순되면 mat에 vector를 추가하지 않고 배제하는 식으로 진행 예정 
+// → vector가 줄어드니 size도 output으로 빼야함
+void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks)
+{
+	BYTE* target_vector;
+	int index_mat = 0;  // x
+
+	int* order = new int[Rcom];
+	int* arr = new int[Ncom];
+	for (int cnt = 0; cnt < Ncom; cnt++)
+		arr[cnt] = cnt;
+
+	int val = 0;
+	int pos = 0;
+	while (true)
+	{
+		target_vector = (BYTE*)mat.GetPixelAddress(0, index_mat++);
+
+		//void printline(int pos, int val)
+		{
+			for (int now = pos; now < Rcom; now++, val++)
+			{
+				order[now] = val;
+			}
+
+			// print
+			vector<int> blanks;
+			blanks.resize(blocks.size() + 1);
+			for (long cnt_n = 0; cnt_n < blanks.size(); cnt_n++)
+				blanks[cnt_n] = 1;
+			blanks[0] = 0;
+			blanks[blanks.size() - 1] = 0;
+
+			// order to blanks
+			int add_blank = 0;
+			int index_order = 0;
+			for (long cnt = 0; cnt < Ncom; cnt++)
+			{
+				if (order[index_order] == cnt)
+				{
+					blanks[index_order] += add_blank;
+					index_order++;
+					add_blank = 0;
+
+					if (index_order >= Rcom)
+					{
+						blanks[index_order] += Ncom - cnt - 1;
+						break;
+					}
+				}
+				else
+				{
+					add_blank++;
+				}
+			}
+
+			int index_target = 0;
+			for (long cnt1 = 0; cnt1 < blocks.size(); cnt1++)
+			{
+				int blank = blanks[cnt1];
+				int block = blocks[cnt1];
+				while (blank--)
+				{
+					target_vector[index_target] = 2;
+					index_target++;
+				}
+				while (block--)
+				{
+					target_vector[index_target] = 1;
+					index_target++;
+				}
+			}
+			int blank = blanks[blanks.size() - 1];
+			while (blank--)
+			{
+				target_vector[index_target] = 2;
+				index_target++;
+			}
+		}
+
+		bool bComplition = true;
+		for (long toPos = Rcom - 1; toPos >= 0; toPos--)
+		{
+			// order[pos]가 각 pos별 last arr(element)인지
+			int limitArrByPos = Ncom - Rcom + toPos; //(n - 1) - (r - pos - 1)
+			if (order[toPos] < limitArrByPos)
+			{
+				pos = toPos;
+				val = order[toPos] + 1;
+				bComplition = false;
+				break;
+			}
+		}
+		if (bComplition)
+			break;
+	}
+
+	delete[] arr;
+	delete[] order;
 }
 
 void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()

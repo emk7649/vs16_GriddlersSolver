@@ -149,6 +149,7 @@ public:
 	void MakeSquareMonochrome(CImage& plate, CPoint pos, BYTE gray_value);
 	void MakeSquareColor(CImage& plate, CPoint pos, COLORREF color);
 	void FillZero(CImage& image);
+    void Fill(CImage& image, BYTE value);
 
 	// vector, line algorithm
     CCompletionChecker m_completionChecker;
@@ -156,6 +157,8 @@ public:
 	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
 	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
     bool SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve);
+    void MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks);
+    void MakeLineFromMatrix(CImage& mat, int size_mat, vector<BYTE>& line);
 
 	ImageView m_view;
 	void InitView();
