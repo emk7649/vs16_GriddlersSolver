@@ -466,10 +466,10 @@ bool CGriddlersSolverDlg::SetLineVector(CImage& plateData, GridElement grid_elem
 			*dst = i_line[y];
 		}
 	}
-	return false;
+	return true;
 }
 
-bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve)
+bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve, QueueLineSolve& queue)
 {
 	GridElement& grid_element = lineSolve.grid_element;
 	int& line_index = lineSolve.line_index;
@@ -491,6 +491,7 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 	vector<BYTE> line;
 	if (!GetLineVector(plateData, grid_element, line_index, line))
 		return false;
+	vector<BYTE> lineOld = line;
 
 	int nOccupy = 0;
 	for (long cnt = 0; cnt < blocks.size(); cnt++)
@@ -565,6 +566,22 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 
 	if (!SetLineVector(plateData, grid_element, line_index, line))
 		return false;
+
+	// add queue
+	// compare lineOld and lineNew. if sqaure changed, add orthogonal Line including sqaure to queue;
+	for (long cnt = 0; cnt < lineOld.size(); cnt++)
+	{
+		if (lineOld[cnt] != line[cnt])
+		{
+			sLineSolve add = { GridElement::ROW, cnt };
+			if (grid_element == GridElement::ROW)
+				add.grid_element = GridElement::COLUMN;
+			else if (grid_element == GridElement::COLUMN)
+				add.grid_element = GridElement::ROW;
+
+			queue.push_back(add);
+		}
+	}
 
 	return true;
 }
@@ -778,7 +795,7 @@ void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 
 		sLineSolve* line = m_queueLineSolve.pop_front();
 		if (line)
-			SolveLineSolve1(m_plateData, *line);
+			SolveLineSolve1(m_plateData, *line, m_queueLineSolve);
 		else
 		{
 			AfxMessageBox(_T("error {66A6AAF5-1B0E-4F44-9FFF-80871B770DEF}, The queue is empty even though it's not yet complete."));
@@ -788,6 +805,8 @@ void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 		if (m_completionChecker.IsComplete(*line))
 			m_completionChecker.CompleteLine(*line);
 
+		MakeDrawPlate(m_plateData, m_plateDraw);
+		m_view.SetImage(m_plateDraw);
 	}
 	MakeDrawPlate(m_plateData, m_plateDraw);
 	m_view.SetImage(m_plateDraw);
