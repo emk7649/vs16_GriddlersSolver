@@ -546,9 +546,9 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 		CreateCImage(mat, sizeX, sizeY, 8);
 		Fill(mat, 99);
 
-		int size_mat = 0;
-		MakeMatrixCombination(mat, Ncom, Rpcom, blocks);
-		MakeLineFromMatrix(mat, size_mat, line);
+		int size_case = 0; // new sizeY
+		MakeMatrixCombination(mat, Ncom, Rpcom, blocks, line, size_case);
+		MakeLineFromMatrix(mat, size_case, line);
 	}
 
 	if (!SetLineVector(plateData, grid_element, line_index, line))
@@ -560,7 +560,7 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 void CGriddlersSolverDlg::MakeLineFromMatrix(CImage& mat, int size_mat, vector<BYTE>& line)
 {
 	const int sizeX = mat.GetWidth(); // size square
-	const int sizeY = mat.GetHeight(); // size case
+	const int sizeY = size_mat; // size case
 
 	// Transpose
 	CImage matT;
@@ -599,8 +599,11 @@ void CGriddlersSolverDlg::MakeLineFromMatrix(CImage& mat, int size_mat, vector<B
 // 해당 vecotr에 이미 들어있는 정보(1 또는 2로 채워진 square)도 이용해야 함
 // 단순히 이미 들어있는 정보와 모순되면 mat에 vector를 추가하지 않고 배제하는 식으로 진행 예정 
 // → vector가 줄어드니 size도 output으로 빼야함
-void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks)
+void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case)
 {
+	const int sizeX = mat.GetWidth(); // size square
+	const int sizeY = mat.GetHeight(); // size case
+
 	BYTE* target_vector;
 	int index_mat = 0;  // x
 
@@ -615,69 +618,85 @@ void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom,
 	{
 		target_vector = (BYTE*)mat.GetPixelAddress(0, index_mat++);
 
-		//void printline(int pos, int val)
+		// make order that correspond to case
+		for (int now = pos; now < Rcom; now++, val++)
 		{
-			for (int now = pos; now < Rcom; now++, val++)
+			order[now] = val;
+		}
+
+		// make black
+		vector<int> blanks;
+		blanks.resize(blocks.size() + 1);
+		for (long cnt_n = 0; cnt_n < blanks.size(); cnt_n++)
+			blanks[cnt_n] = 1;
+		blanks[0] = 0;
+		blanks[blanks.size() - 1] = 0;
+
+		// order to blanks
+		int add_blank = 0;
+		int index_order = 0;
+		for (long cnt = 0; cnt < Ncom; cnt++)
+		{
+			if (order[index_order] == cnt)
 			{
-				order[now] = val;
-			}
+				blanks[index_order] += add_blank;
+				index_order++;
+				add_blank = 0;
 
-			// print
-			vector<int> blanks;
-			blanks.resize(blocks.size() + 1);
-			for (long cnt_n = 0; cnt_n < blanks.size(); cnt_n++)
-				blanks[cnt_n] = 1;
-			blanks[0] = 0;
-			blanks[blanks.size() - 1] = 0;
-
-			// order to blanks
-			int add_blank = 0;
-			int index_order = 0;
-			for (long cnt = 0; cnt < Ncom; cnt++)
-			{
-				if (order[index_order] == cnt)
+				if (index_order >= Rcom)
 				{
-					blanks[index_order] += add_blank;
-					index_order++;
-					add_blank = 0;
-
-					if (index_order >= Rcom)
-					{
-						blanks[index_order] += Ncom - cnt - 1;
-						break;
-					}
-				}
-				else
-				{
-					add_blank++;
+					blanks[index_order] += Ncom - cnt - 1;
+					break;
 				}
 			}
-
-			int index_target = 0;
-			for (long cnt1 = 0; cnt1 < blocks.size(); cnt1++)
+			else
 			{
-				int blank = blanks[cnt1];
-				int block = blocks[cnt1];
-				while (blank--)
-				{
-					target_vector[index_target] = 2;
-					index_target++;
-				}
-				while (block--)
-				{
-					target_vector[index_target] = 1;
-					index_target++;
-				}
+				add_blank++;
 			}
-			int blank = blanks[blanks.size() - 1];
+		}
+
+		// make target_vector with blocks and blanks
+		int index_target = 0;
+		for (long cnt1 = 0; cnt1 < blocks.size(); cnt1++)
+		{
+			int blank = blanks[cnt1];
+			int block = blocks[cnt1];
 			while (blank--)
 			{
 				target_vector[index_target] = 2;
 				index_target++;
 			}
+			while (block--)
+			{
+				target_vector[index_target] = 1;
+				index_target++;
+			}
+		}
+		int blank = blanks[blanks.size() - 1];
+		while (blank--)
+		{
+			target_vector[index_target] = 2;
+			index_target++;
 		}
 
-		bool bComplition = true;
+		// except case when it doesn't match with squares already occupied.
+		bool bExcept = false;
+		for (long cnt = 0; cnt < sizeX; cnt++)
+		{
+			if (i_line[cnt] == 1 || i_line[cnt] == 2)
+			{
+				if (target_vector[cnt] != i_line[cnt])
+				{
+					bExcept = true;
+					break;
+				}
+			}
+		}
+		if (bExcept)
+			index_mat--;
+
+		// combination algorithm for next order
+		bool bCompletion = true;
 		for (long toPos = Rcom - 1; toPos >= 0; toPos--)
 		{
 			// order[pos]가 각 pos별 last arr(element)인지
@@ -686,14 +705,15 @@ void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom,
 			{
 				pos = toPos;
 				val = order[toPos] + 1;
-				bComplition = false;
+				bCompletion = false;
 				break;
 			}
 		}
-		if (bComplition)
+		if (bCompletion)
 			break;
 	}
 
+	o_size_case = index_mat;
 	delete[] arr;
 	delete[] order;
 }
@@ -706,13 +726,6 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 
 	int sum_row = ConvertRowColumn(m_edit_rows, m_blocks_row);
 	int sum_column = ConvertRowColumn(m_edit_columns, m_blocks_column);
-
-	// check sum_row == sum_column
-	if (sum_row != sum_column)
-	{
-		AfxMessageBox(_T("error {5CA8658B-9447-4178-B71E-8335E70AFC0D}, sum_row != sum_column"));
-		return;
-	}
 
 	int size_row = (int)m_blocks_row.size();
 	int size_column = (int)m_blocks_column.size();
@@ -748,8 +761,20 @@ void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 	// while queue
 	while (!m_queueLineSolve.empty())
 	{
-		SolveLineSolve1(m_plateData, *m_queueLineSolve.pop_front());
-		long x = 10;
+		if (m_completionChecker.IsComplete())
+			break;
+
+		sLineSolve* line = m_queueLineSolve.pop_front();
+		if (line)
+			SolveLineSolve1(m_plateData, *line);
+		else
+		{
+			AfxMessageBox(_T("error {66A6AAF5-1B0E-4F44-9FFF-80871B770DEF}, The queue is empty even though it's not yet complete."));
+			break;
+		}
+
+		if (m_completionChecker.IsComplete(*line))
+			m_completionChecker.CompleteLine(*line);
 
 	}
 	MakeDrawPlate(m_plateData, m_plateDraw);
