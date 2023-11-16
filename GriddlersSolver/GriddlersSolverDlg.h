@@ -4,6 +4,13 @@
 #include <vector>
 using namespace std;
 
+#include "ImageView.h"
+
+enum class GridElement
+{
+	ROW,
+	COLUMN,
+};
 
 // CGriddlersSolverDlg 대화 상자
 class CGriddlersSolverDlg : public CDialogEx
@@ -13,10 +20,23 @@ public:
 	CGriddlersSolverDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 	virtual ~CGriddlersSolverDlg();
 
-	vector<vector<int>> m_vvRow;
-	vector<vector<int>> m_vvColumn;
+	vector<vector<int>> m_numbers_row;
+	vector<vector<int>> m_numbers_column;
+	int ConvertRowColumn(CString strValue, vector<vector<int>>& o_numbers);
 
-	void ConvertRowColumn(CString strValue, vector<vector<int>>& o_vvValue);
+	// CImage
+	CImage m_plateData;   // 0:not_defined, 1:有, 2:無
+	CImage m_plateDraw;
+	void MakeDrawPlate(CImage& plateData, CImage& plateDraw);
+	void MakeSquareMonochrome(CImage& plate, CPoint pos, BYTE gray_value);
+	void MakeSquareColor(CImage& plate, CPoint pos, COLORREF color);
+	void FillZero(CImage& image);
+
+	// vector, line algorithm
+	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
+	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
+
+	ImageView m_view;
 	void InitView();
 
 // 대화 상자 데이터입니다.

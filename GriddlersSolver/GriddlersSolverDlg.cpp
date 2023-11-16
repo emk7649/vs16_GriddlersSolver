@@ -12,9 +12,46 @@
 #define new DEBUG_NEW
 #endif
 
+bool CreateCImage(CImage& cimage, long width, long height, long nPixelCount)
+{
+	cimage.Destroy();
+	BYTE tmp[sizeof(BITMAPINFO) + 256 * sizeof(RGBQUAD)];
+	void* pBits;
+	LPBITMAPINFO pbmi((BITMAPINFO*)tmp);
+	memset(&pbmi->bmiHeader, 0, sizeof(pbmi->bmiHeader));
+	pbmi->bmiHeader.biSize = sizeof(pbmi->bmiHeader);
+	pbmi->bmiHeader.biWidth = width;
+	pbmi->bmiHeader.biHeight = height;
+	pbmi->bmiHeader.biPlanes = 1;
+	pbmi->bmiHeader.biBitCount = USHORT(nPixelCount);
+	pbmi->bmiHeader.biCompression = BI_RGB;
+	if (pbmi->bmiHeader.biBitCount <= 8)
+		memset(pbmi->bmiColors, 0, 256 * sizeof(RGBQUAD));
+	WORD& bpp = pbmi->bmiHeader.biBitCount;
+	switch (bpp)
+	{
+	case 8:
+		for (long i = 0; i < 256; i++)
+		{
+			pbmi->bmiColors[i].rgbBlue = i;
+			pbmi->bmiColors[i].rgbGreen = i;
+			pbmi->bmiColors[i].rgbRed = i;
+		}
+		break;
+	case 32:
+	case 24:
+		((DWORD*)pbmi->bmiColors)[0] = 0x00FF0000; /* red mask  */
+		((DWORD*)pbmi->bmiColors)[1] = 0x0000FF00; /* green mask */
+		((DWORD*)pbmi->bmiColors)[2] = 0x000000FF; /* blue mask  */
+		break;
+	}
+	HBITMAP hBitmap = ::CreateDIBSection(NULL, pbmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+	ASSERT(hBitmap != NULL);
+	cimage.Attach(hBitmap, (pbmi->bmiHeader.biHeight < 0) ? CImage::DIBOR_TOPDOWN : CImage::DIBOR_BOTTOMUP);
+	return true;
+}
 
 // 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
-
 class CAboutDlg : public CDialogEx
 {
 public:
@@ -45,11 +82,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
-
 // CGriddlersSolverDlg 대화 상자
-
-
-
 CGriddlersSolverDlg::CGriddlersSolverDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_GRIDDLERSSOLVER_DIALOG, pParent)
 	, m_edit_rows(_T(""))
@@ -79,9 +112,7 @@ BEGIN_MESSAGE_MAP(CGriddlersSolverDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SolveProblem, &CGriddlersSolverDlg::OnBnClickedBtnSolveproblem)
 END_MESSAGE_MAP()
 
-
 // CGriddlersSolverDlg 메시지 처리기
-
 BOOL CGriddlersSolverDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
@@ -113,6 +144,10 @@ BOOL CGriddlersSolverDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	InitView();
+
+	m_edit_rows = _T("3\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
+	m_edit_columns = _T("3,\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
+	UpdateData(false);
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -166,8 +201,6 @@ HCURSOR CGriddlersSolverDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-
-
 BOOL CGriddlersSolverDlg::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message == WM_KEYDOWN)
@@ -191,70 +224,249 @@ BOOL CGriddlersSolverDlg::PreTranslateMessage(MSG* pMsg)
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 
-void CGriddlersSolverDlg::ConvertRowColumn(CString strValue, vector<vector<int>>& o_vvValue)
+int CGriddlersSolverDlg::ConvertRowColumn(CString strValue, vector<vector<int>>& o_vvValue)
 {
-	// line to line seperator : '\n', '\r\n'
-	// word to word seperator : ' ', ',', '.'
+    // line to line seperator : '\n', '\r\n'
+    // word to word seperator : ' ', ',', '.'
 
-	strValue.Replace(_T("\r"), _T(""));
-	strValue.Replace(_T(" "), _T(","));
-	strValue.Replace(_T("."), _T(","));
+    strValue.Replace(_T("\r"), _T(""));
+    strValue.Replace(_T(" "), _T(","));
+    strValue.Replace(_T("."), _T(","));
 
-	CString SeperatorLine = _T("\n");
-	CString SeperatorWord = _T(",");
-	int PositionLine = 0;
-	int PositionWord = 0;
-	CString line, word;
+    CString SeperatorLine = _T("\n");
+    CString SeperatorWord = _T(",");
+    int PositionLine = 0;
+    int PositionWord = 0;
+    CString line, word;
 
-	// 몇 개나 되겠어, push_back 써라
-	while (true) // while (!line.IsEmpty());
-	{
-		// Get next token.
-		line = strValue.Tokenize(SeperatorLine, PositionLine);
-		if (PositionLine == -1)
-			break;
+    int sum, sum_line;
+    sum = 0;
 
-		vector<int> o_line;
-		PositionWord = 0;
-		while (true)
-		{
+    // 몇 개나 되겠어, push_back 써라
+    while (true) // while (!line.IsEmpty());
+    {
+        // Get next token.
+        line = strValue.Tokenize(SeperatorLine, PositionLine);
+        if (PositionLine == -1)
+            break;
+
+        vector<int> o_line;
+        PositionWord = 0;
+        sum_line = 0;
+        while (true)
+        {
 			// Get next token.
-			word = line.Tokenize(SeperatorWord, PositionWord);
-			if (PositionWord == -1)
-				break;
+            word = line.Tokenize(SeperatorWord, PositionWord);
+            if (PositionWord == -1)
+                break;
 
-			o_line.push_back(_ttol(word));
+            int value = _ttol(word);
+            o_line.push_back(value);
+            sum_line += value;
+        }
+
+        o_vvValue.push_back(o_line);
+        sum += sum_line;
+    }
+
+    return sum;
+}
+
+void CGriddlersSolverDlg::MakeSquareMonochrome(CImage& plate, CPoint pos, BYTE gray_value)
+{
+	if (plate.GetBPP() != 8)
+		return;
+
+	BYTE* Dst = (BYTE*)plate.GetPixelAddress(pos.x, pos.y);
+	*Dst = gray_value;
+}
+
+void CGriddlersSolverDlg::MakeSquareColor(CImage& plate, CPoint pos, COLORREF color)
+{
+	if (plate.GetBPP() != 24)
+		return;
+
+	BYTE* Dst = (BYTE*)plate.GetPixelAddress(pos.x, pos.y);
+
+	BYTE red = color >> 0;
+	BYTE green = color >> 8;
+	BYTE blue = color >> 16;
+
+	Dst[0] = blue;
+	Dst[1] = green;
+	Dst[2] = red;
+}
+
+void CGriddlersSolverDlg::MakeDrawPlate(CImage& plateData, CImage& plateDraw)
+{
+	long widthSrc = plateData.GetWidth();
+	long heightSrc = plateData.GetHeight();
+
+	for (long y = 0; y < heightSrc; y++)
+	{
+		BYTE* Src = (BYTE*)plateData.GetPixelAddress(0, y);
+		BYTE* Dst = (BYTE*)plateDraw.GetPixelAddress(0, y);
+		for (long x = 0; x < widthSrc; x++)
+		{
+			switch (Src[x])
+			{
+			case 0:    // make chess pattern (gray & white)
+			{
+				if ((x + y) % 2 == 1)
+				{
+					Dst[x * plateDraw.GetBPP() / 8 + 0] = 192;
+					Dst[x * plateDraw.GetBPP() / 8 + 1] = 192;
+					Dst[x * plateDraw.GetBPP() / 8 + 2] = 192;
+				}
+				else
+				{
+					Dst[x * plateDraw.GetBPP() / 8 + 0] = 255;
+					Dst[x * plateDraw.GetBPP() / 8 + 1] = 255;
+					Dst[x * plateDraw.GetBPP() / 8 + 2] = 255;
+				}
+				break;
+			}
+			case 1:    // make black
+			{
+				Dst[x * plateDraw.GetBPP() / 8 + 0] = 0;
+				Dst[x * plateDraw.GetBPP() / 8 + 1] = 0;
+				Dst[x * plateDraw.GetBPP() / 8 + 2] = 0;
+				break;
+			}
+			case 2:    // make red
+			{
+				Dst[x * plateDraw.GetBPP() / 8 + 0] = 0;
+				Dst[x * plateDraw.GetBPP() / 8 + 1] = 0;
+				Dst[x * plateDraw.GetBPP() / 8 + 2] = 255;
+				break;
+			}
+			default:;
+			}
 		}
-		o_vvValue.push_back(o_line);
 	}
 }
 
 void CGriddlersSolverDlg::InitView()
 {
-	CRect viewRect;
-	GetDlgItem(IDC_VIEW)->GetWindowRect(viewRect);
-	ScreenToClient(viewRect);
+	//CRect viewRect;
+	//GetDlgItem(IDC_VIEW)->GetWindowRect(viewRect);
+	//ScreenToClient(viewRect);
 
-	// assign view
+	m_view.hwnd = GetSafeHwnd();
+	m_view.m_control = GetDlgItem(IDC_VIEW);
+}
+
+void CGriddlersSolverDlg::FillZero(CImage& image)
+{
+	int width = image.GetWidth();
+	int height = image.GetHeight();
+	if (width == 0 || height == 0)
+		return;
+
+	int pitch = std::abs(image.GetPitch());
+	BYTE* zeros = new BYTE[pitch];
+	memset(zeros, 0, pitch);
+	for (long y = 0; y < height; y++)
+	{
+		BYTE* Dst = (BYTE*)image.GetPixelAddress(0, y);
+		memcpy(Dst, zeros, pitch);
+	}
+	delete[] zeros;
+}
+
+bool CGriddlersSolverDlg::GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line)
+{
+	if (plateData.GetWidth() == 0)
+		return false;
+
+	vector<BYTE>& result = o_line;
+
+	long width = plateData.GetWidth();
+	long height = plateData.GetHeight();
+
+	if (grid_element == GridElement::ROW)
+	{
+		result.resize(plateData.GetWidth());
+		for (long x = 0; x < width; x++)
+		{
+			BYTE* byte = (BYTE*)plateData.GetPixelAddress(x, line_index);
+			result[x] = *byte;
+		}
+	}
+	else if (grid_element == GridElement::COLUMN)
+	{
+		result.resize(plateData.GetHeight());
+		for (long y = 0; y < height; y++)
+		{
+			BYTE* byte = (BYTE*)plateData.GetPixelAddress(line_index, y);
+			result[y] = *byte;
+		}
+	}
+
+	return true;
+}
+
+bool CGriddlersSolverDlg::SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line)
+{
+	if (plateData.GetWidth() == 0)
+		return false;
+
+	long width = plateData.GetWidth();
+	long height = plateData.GetHeight();
+
+	if (grid_element == GridElement::ROW)
+	{
+		if (i_line.size() != width)
+			return false;
+		for (long x = 0; x < width; x++)
+		{
+			BYTE* dst = (BYTE*)plateData.GetPixelAddress(x, line_index);
+			*dst = i_line[x];
+		}
+	}
+	else if (grid_element == GridElement::COLUMN)
+	{
+		if (i_line.size() != height)
+			return false;
+		for (long y = 0; y < height; y++)
+		{
+			BYTE* dst = (BYTE*)plateData.GetPixelAddress(line_index, y);
+			*dst = i_line[y];
+		}
+	}
 }
 
 void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 {
 	UpdateData(true);
-	m_vvRow.clear();
-	m_vvRow.clear();
+	m_numbers_row.clear();
+	m_numbers_column.clear();
 
-	ConvertRowColumn(m_edit_rows, m_vvRow);
-	ConvertRowColumn(m_edit_columns, m_vvColumn);
+	int sum_row = ConvertRowColumn(m_edit_rows, m_numbers_row);
+	int sum_column = ConvertRowColumn(m_edit_columns, m_numbers_column);
 
-	int size_row = m_vvRow.size();
-	int size_column = m_vvColumn.size();
+	// check sum_row == sum_column
+	if (sum_row != sum_column)
+	{
+		AfxMessageBox(_T("error {5CA8658B-9447-4178-B71E-8335E70AFC0D}, sum_row != sum_column"));
+		return;
+	}
 
-	CString RowColumn;
-	RowColumn.Format(_T(""));
+	int size_row = m_numbers_row.size();
+	int size_column = m_numbers_column.size();
+
+	m_static_columnrow.Format(_T("%d * %d"), size_column, size_row);
+	UpdateData(false);
+
+	// make plate
+	CreateCImage(m_plateData, size_row, size_column, 8);
+	CreateCImage(m_plateDraw, size_row, size_column, 24);
+	MakeDrawPlate(m_plateData, m_plateDraw);
+	m_view.SetImage(m_plateDraw);
 }
 
 void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 {
-
+	if (m_plateData.GetWidth() <= 0)
+		return;
 }
