@@ -12,6 +12,99 @@ enum class GridElement
 	COLUMN,
 };
 
+struct sLineSolve
+{
+    GridElement grid_element;
+    int line_index;
+};
+
+class QueueLineSolve
+{
+public:
+    QueueLineSolve() {}
+    virtual ~QueueLineSolve() {}
+    void push_back(sLineSolve lineSolve)
+    {
+        m_queue.push_back(lineSolve);
+    }
+    void push_back(GridElement grid_element, int line_index)
+    {
+        sLineSolve lineSolve = { grid_element , line_index };
+        m_queue.push_back(lineSolve);
+    }
+    sLineSolve* pop_front()
+    {
+        if (!m_queue.empty())
+        {
+            sLineSolve* frontElement = &m_queue[0];
+            m_queue.erase(m_queue.begin());
+            return frontElement;
+        }
+        else {
+            return nullptr;  // 빈 벡터인 경우 nullptr 반환
+        }
+    }
+private:
+    vector<sLineSolve> m_queue;
+};
+
+class CCompletionChecker
+{
+public:
+    CCompletionChecker() {}
+    CCompletionChecker(int row_size, int column_size)
+    {
+        m_completions_row.resize(row_size);
+        m_completions_column.resize(column_size);
+        for (int cnt = 0; cnt < row_size; cnt++)
+        {
+            m_completions_row[cnt] = false;
+        }
+        for (int cnt = 0; cnt < column_size; cnt++)
+        {
+            m_completions_column[cnt] = false;
+        }
+    }
+    virtual ~CCompletionChecker() {}
+    bool IsComplete()
+    {
+        int row_size = (int)m_completions_row.size();
+        for (int cnt = 0; cnt < row_size; cnt++)
+        {
+            if (m_completions_row[cnt] == false)
+                return false;
+        }
+        return true;
+    }
+    bool IsComplete(sLineSolve lineSolve)
+    {
+        if (lineSolve.grid_element == GridElement::ROW)
+        {
+            return m_completions_row[lineSolve.line_index];
+        }
+        else if (lineSolve.grid_element == GridElement::COLUMN)
+        {
+            return m_completions_column[lineSolve.line_index];
+        }
+        return false;
+    }
+    void CompleteLine(sLineSolve lineSolve)
+    {
+        if (lineSolve.grid_element == GridElement::ROW)
+        {
+            m_completions_row[lineSolve.line_index] = true;
+        }
+        else if (lineSolve.grid_element == GridElement::COLUMN)
+        {
+            m_completions_column[lineSolve.line_index] = true;
+        }
+    }
+
+private:
+    vector<BOOL> m_completions_row;
+    vector<BOOL> m_completions_column;
+};
+
 // CGriddlersSolverDlg 대화 상자
 class CGriddlersSolverDlg : public CDialogEx
 {
@@ -33,6 +126,8 @@ public:
 	void FillZero(CImage& image);
 
 	// vector, line algorithm
+    CCompletionChecker m_completionChecker;
+    QueueLineSolve m_queueLineSolve;
 	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
 	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
 

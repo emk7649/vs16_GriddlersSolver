@@ -12,6 +12,5 @@ public:
     HWND hwnd;
 
     CWnd* m_control;
-    CRect m_rect;
     void SetImage(CImage& image);
 };

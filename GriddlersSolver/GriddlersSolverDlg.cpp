@@ -33,9 +33,9 @@ bool CreateCImage(CImage& cimage, long width, long height, long nPixelCount)
 	case 8:
 		for (long i = 0; i < 256; i++)
 		{
-			pbmi->bmiColors[i].rgbBlue = i;
-			pbmi->bmiColors[i].rgbGreen = i;
-			pbmi->bmiColors[i].rgbRed = i;
+			pbmi->bmiColors[i].rgbBlue = (BYTE)i;
+			pbmi->bmiColors[i].rgbGreen = (BYTE)i;
+			pbmi->bmiColors[i].rgbRed = (BYTE)i;
 		}
 		break;
 	case 32:
@@ -288,9 +288,9 @@ void CGriddlersSolverDlg::MakeSquareColor(CImage& plate, CPoint pos, COLORREF co
 
 	BYTE* Dst = (BYTE*)plate.GetPixelAddress(pos.x, pos.y);
 
-	BYTE red = color >> 0;
-	BYTE green = color >> 8;
-	BYTE blue = color >> 16;
+	BYTE red = (BYTE)(color >> 0);
+	BYTE green = (BYTE)(color >> 8);
+	BYTE blue = (BYTE)(color >> 16);
 
 	Dst[0] = blue;
 	Dst[1] = green;
@@ -310,7 +310,7 @@ void CGriddlersSolverDlg::MakeDrawPlate(CImage& plateData, CImage& plateDraw)
 		{
 			switch (Src[x])
 			{
-			case 0:    // make chess pattern (gray & white)
+			case 0:    // 未定, make chess pattern (gray & white)
 			{
 				if ((x + y) % 2 == 1)
 				{
@@ -326,14 +326,14 @@ void CGriddlersSolverDlg::MakeDrawPlate(CImage& plateData, CImage& plateDraw)
 				}
 				break;
 			}
-			case 1:    // make black
+			case 1:    // 有, make black
 			{
 				Dst[x * plateDraw.GetBPP() / 8 + 0] = 0;
 				Dst[x * plateDraw.GetBPP() / 8 + 1] = 0;
 				Dst[x * plateDraw.GetBPP() / 8 + 2] = 0;
 				break;
 			}
-			case 2:    // make red
+			case 2:    // 無, make red
 			{
 				Dst[x * plateDraw.GetBPP() / 8 + 0] = 0;
 				Dst[x * plateDraw.GetBPP() / 8 + 1] = 0;
@@ -374,6 +374,7 @@ void CGriddlersSolverDlg::FillZero(CImage& image)
 	delete[] zeros;
 }
 
+// Get LineVector from PlateDatas
 bool CGriddlersSolverDlg::GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line)
 {
 	if (plateData.GetWidth() == 0)
@@ -406,6 +407,7 @@ bool CGriddlersSolverDlg::GetLineVector(CImage& plateData, GridElement grid_elem
 	return true;
 }
 
+// Set LineVector to PlateDatas
 bool CGriddlersSolverDlg::SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line)
 {
 	if (plateData.GetWidth() == 0)
@@ -434,6 +436,7 @@ bool CGriddlersSolverDlg::SetLineVector(CImage& plateData, GridElement grid_elem
 			*dst = i_line[y];
 		}
 	}
+	return false;
 }
 
 void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
@@ -452,8 +455,8 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 		return;
 	}
 
-	int size_row = m_numbers_row.size();
-	int size_column = m_numbers_column.size();
+	int size_row = (int)m_numbers_row.size();
+	int size_column = (int)m_numbers_column.size();
 
 	m_static_columnrow.Format(_T("%d * %d"), size_column, size_row);
 	UpdateData(false);
@@ -467,6 +470,20 @@ void CGriddlersSolverDlg::OnBnClickedBtnMakeplate()
 
 void CGriddlersSolverDlg::OnBnClickedBtnSolveproblem()
 {
-	if (m_plateData.GetWidth() <= 0)
+	int width = m_plateData.GetWidth();
+	int height = m_plateData.GetHeight();
+	if (width == 0 || height == 0)
 		return;
+
+	// init queue
+	for (int cnt = 0; cnt < height; cnt++)
+	{
+		m_queueLineSolve.push_back(GridElement::ROW, cnt);
+	}
+	for (int cnt = 0; cnt < width; cnt++)
+	{
+		m_queueLineSolve.push_back(GridElement::COLUMN, cnt);
+	}
+
+	// while queue
 }
