@@ -148,6 +148,10 @@ BOOL CGriddlersSolverDlg::OnInitDialog()
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	InitView();
 
+	// empty
+	m_edit_rows = _T("");
+	m_edit_columns = _T("");
+
 	//// vertices가 찌그러진 square contour
 	m_edit_rows = _T("3\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
 	m_edit_columns = _T("3,\r\n2,2,\r\n1,1,\r\n2,2,\r\n3,");
@@ -552,12 +556,19 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 		//	denominator *= (double)cnt;
 		//long sizeY = (long)(numerator / denominator + 0.5);
 
-		long sizeX = num_squre;
-		long sizeY = (long)(tgamma(Ncom + 1.) / tgamma(Rcom + 1.) / tgamma(Rpcom + 1.) + 0.5);  // n! : tgamma(n + 1)
+		double caseSize = tgamma(Ncom + 1.) / tgamma(Rcom + 1.) / tgamma(Rpcom + 1.) + 0.5;
+		if (caseSize > (double)LONG_MAX)
+		{
+			AfxMessageBox(_T("error {ED52123B-9F4A-4D07-B856-DB11580A2D8F}, The size of case is greater than max_long."));
+			return false;
+		}
 
-		CImage mat;
-		CreateCImage(mat, sizeX, sizeY, 8);
-		Fill(mat, 99);
+		long sizeX = num_squre;
+		long sizeY = (long)(caseSize);
+
+		MatrixByte mat;
+		mat.Create(sizeX, sizeY);
+		mat.Fill(99);
 
 		int size_case = 0; // new sizeY
 		MakeMatrixCombination(mat, Ncom, Rpcom, blocks, line, size_case);
@@ -586,29 +597,30 @@ bool CGriddlersSolverDlg::SolveLineSolve1(CImage& io_plateData, sLineSolve lineS
 	return true;
 }
 
-void CGriddlersSolverDlg::MakeLineFromMatrix(CImage& mat, int size_mat, vector<BYTE>& line)
+void CGriddlersSolverDlg::MakeLineFromMatrix(MatrixByte& mat, int size_mat, vector<BYTE>& line)
 {
-	const int sizeX = mat.GetWidth(); // size square
+	const int sizeX = mat.GetSizeX(); // size square
 	const int sizeY = size_mat; // size case
 
 	// Transpose
-	CImage matT;
-	CreateCImage(matT, sizeY, sizeX, 8);
+	MatrixByte matT;
+	matT.Create(sizeY, sizeX);
 
+	//// Transpose
 	for (long y = 0; y < sizeY; y++)
 	{
-		BYTE* pSrc = (BYTE*)mat.GetPixelAddress(0, y);
+		BYTE* pSrc = mat.GetBuffer()[y];
 		for (long x = 0; x < sizeX; x++)
 		{
-			BYTE* pDst = (BYTE*)matT.GetPixelAddress(y, x);
-			*pDst = pSrc[x];
+			BYTE* pDst = matT[x];
+			pDst[y] = pSrc[x];
 		}
 	}
 
 	// Compress
 	for (long y = 0; y < sizeX; y++)
 	{
-		BYTE* pSrc = (BYTE*)matT.GetPixelAddress(0, y);
+		BYTE* pSrc = matT[y];
 		int sumY = 0;
 		for (long x = 0; x < sizeY; x++)
 		{
@@ -628,10 +640,10 @@ void CGriddlersSolverDlg::MakeLineFromMatrix(CImage& mat, int size_mat, vector<B
 // 해당 vecotr에 이미 들어있는 정보(1 또는 2로 채워진 square)도 이용해야 함
 // 단순히 이미 들어있는 정보와 모순되면 mat에 vector를 추가하지 않고 배제하는 식으로 진행 예정 
 // → vector가 줄어드니 size도 output으로 빼야함
-void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case)
+void CGriddlersSolverDlg::MakeMatrixCombination(MatrixByte& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case)
 {
-	const int sizeX = mat.GetWidth(); // size square
-	const int sizeY = mat.GetHeight(); // size case
+	const int sizeX = mat.GetSizeX(); // size square
+	const int sizeY = mat.GetSizeY(); // size case
 
 	BYTE* target_vector;
 	int index_mat = 0;  // x
@@ -645,7 +657,7 @@ void CGriddlersSolverDlg::MakeMatrixCombination(CImage& mat, int Ncom, int Rcom,
 	int pos = 0;
 	while (true)
 	{
-		target_vector = (BYTE*)mat.GetPixelAddress(0, index_mat++);
+		target_vector = mat.GetBuffer()[index_mat++];
 
 		// make order that correspond to case
 		for (int now = pos; now < Rcom; now++, val++)

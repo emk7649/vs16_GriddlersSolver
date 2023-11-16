@@ -39,6 +39,9 @@
     <ClInclude Include="ImageView.h">
       <Filter>class</Filter>
     </ClInclude>
+    <ClInclude Include="MatrixByte.h">
+      <Filter>class</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GriddlersSolver.cpp">
@@ -51,6 +54,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ImageView.cpp">
+      <Filter>class</Filter>
+    </ClCompile>
+    <ClCompile Include="MatrixByte.cpp">
       <Filter>class</Filter>
     </ClCompile>
   </ItemGroup>

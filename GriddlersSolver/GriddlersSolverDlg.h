@@ -5,6 +5,7 @@
 using namespace std;
 
 #include "ImageView.h"
+#include "MatrixByte.h"
 
 enum class GridElement
 {
@@ -157,8 +158,8 @@ public:
 	bool GetLineVector(CImage& plateData, GridElement grid_element, int line_index, vector<BYTE>& o_line);
 	bool SetLineVector(CImage& plateData, GridElement grid_element, int line_index, const vector<BYTE>& i_line);
     bool SolveLineSolve1(CImage& io_plateData, sLineSolve lineSolve, QueueLineSolve& queue);
-    void MakeMatrixCombination(CImage& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case);
-    void MakeLineFromMatrix(CImage& mat, int size_mat, vector<BYTE>& line);
+    void MakeMatrixCombination(MatrixByte& mat, int Ncom, int Rcom, vector<int>& blocks, const vector<BYTE>& i_line, int& o_size_case);
+    void MakeLineFromMatrix(MatrixByte& mat, int size_mat, vector<BYTE>& line);
 
 	ImageView m_view;
 	void InitView();
